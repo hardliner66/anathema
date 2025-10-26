@@ -1,4 +1,8 @@
-//! Element attributes
+//! Element attributes.
+//!
+//! Type-safe attribute access with dynamic updates via `RemoteCell`.
+//! Attributes are immutable once set - replace, don't mutate.
+
 use std::borrow::Borrow;
 use std::ops::Deref;
 
@@ -9,7 +13,7 @@ use anathema_store::smallmap::{SmallIndex, SmallMap};
 use crate::runtime::elements::ElementId;
 use crate::runtime::eval::values::TemplateValue;
 
-// All attributes for all elements
+/// Maps element IDs to their attributes.
 #[derive(Debug)]
 pub(crate) struct AttributeRegistry<'bp> {
     attributes: SecondaryMap<ElementId, Attributes<'bp>>,

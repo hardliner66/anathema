@@ -1,5 +1,6 @@
-//! Compiling template source to blueprints and expressions.
-// #![deny(missing_docs)]
+//! Template compilation.
+//!
+//! Parses template source into blueprints and expressions.
 pub use blueprints::Blueprint;
 pub(crate) use blueprints::{Component, ControlFlow, For, Single, With};
 

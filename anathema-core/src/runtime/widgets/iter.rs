@@ -6,7 +6,11 @@ use crate::layout::Layout;
 use crate::runtime::elements::{Element, ElementId, Elements};
 use crate::runtime::widgets::Widget;
 
-/// Children of a given widget.
+/// Iterator over widget children.
+///
+/// # Invariant
+///
+/// All element IDs must reference `Widget` elements, not other element types.
 pub struct Children<'a, 'bp> {
     children: &'a [ElementId],
     elements: &'a Elements<'bp>,
@@ -43,6 +47,7 @@ impl<'a, 'bp> Iterator for Children<'a, 'bp> {
     }
 }
 
+/// Reference to a widget with its children.
 pub struct WidgetRef<'a, 'bp> {
     id: ElementId,
     widget: RefMut<'a, Box<dyn Widget>>,
@@ -50,6 +55,7 @@ pub struct WidgetRef<'a, 'bp> {
 }
 
 impl<'a, 'bp> WidgetRef<'a, 'bp> {
+    /// Calculate widget layout and return its size.
     pub fn layout(mut self, layout: &mut Layout) -> Size {
         self.widget.layout(self.children, layout)
     }

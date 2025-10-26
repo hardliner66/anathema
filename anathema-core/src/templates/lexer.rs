@@ -1,3 +1,8 @@
+//! Lexical analysis.
+//!
+//! Tokenizes template source: keywords, identifiers, literals, operators, delimiters.
+//! Comments (`//`) are skipped.
+
 use std::iter::Peekable;
 use std::str::CharIndices;
 
@@ -47,6 +52,7 @@ impl<'src, 'consts> Iterator for Lexer<'src, 'consts> {
     }
 }
 
+/// Tokenizes template source.
 pub struct Lexer<'src, 'strings> {
     pub(super) src: &'src TemplateSource,
     pub(crate) strings: &'strings mut Strings,
@@ -54,6 +60,7 @@ pub struct Lexer<'src, 'strings> {
 }
 
 impl<'src, 'strings> Lexer<'src, 'strings> {
+    /// Create lexer.
     pub(crate) fn new(src: &'src TemplateSource, strings: &'strings mut Strings) -> Self {
         Self {
             chars: src.template().char_indices().peekable(),

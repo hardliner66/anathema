@@ -1,11 +1,13 @@
+//! Runtime values from expression evaluation.
+//!
+//! Final values only - not used in evaluation chains.
+
 use std::borrow::Cow;
 use std::collections::HashMap;
 
 use anathema_state::{AnonValue, Color, Hex};
 
-/// This value can never be part of an evaluation chain, only the return value.
-/// It should only ever be the final type that is held by a `Value`, at
-/// the end of an evaluation
+/// Runtime value from expression evaluation.
 #[derive(Debug, PartialEq, Clone)]
 pub enum TemplateValue<'bp> {
     Int(i64),
@@ -16,16 +18,7 @@ pub enum TemplateValue<'bp> {
     Color(Color),
     Str(Cow<'bp, str>),
     Null,
-
-    // NOTE
-    // The map is the final value, and is never used as part
-    // of an index, for that reason the map doesn't hold any values.
-    // TODO: is this true? what about variables binding to maps? e.g: let a = {a: 1}, let b = a.a
     Map(HashMap<&'bp str, TemplateValue<'bp>>),
-    // Map,
-    // NOTE
-    // The attributes is the final value, and is never used as part
-    // of an index, for that reason the attributes doesn't hold any values.
     Attributes,
     List(Box<[TemplateValue<'bp>]>),
     DynList(AnonValue),
@@ -66,7 +59,7 @@ macro_rules! impl_from {
                 Self::$variant(val)
             }
         }
-    }
+    };
 }
 
 impl_from!(bool, Bool);

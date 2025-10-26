@@ -8,6 +8,7 @@ use anathema_store::smallmap::SmallMap;
 use anathema_store::stack::Stack;
 use anathema_store::storage::Storage;
 
+use super::Lexer;
 use super::blueprints::Blueprint;
 use super::error::{Error, ErrorKind, Result};
 use super::expressions::Expressions;
@@ -17,14 +18,14 @@ use super::statements::{Context, Statements};
 use super::strings::{StringId, Strings};
 use super::token::Tokens;
 use super::variables::Variables;
-use super::Lexer;
 
-/// Template source.
-/// For hot reloading this has to be a `Path`.
+/// Template source for compilation.
+///
+/// `Path` enables hot reloading.
 pub enum SourceKind {
-    /// A path to a file
+    /// File path.
     Path(PathBuf),
-    /// The template as a string
+    /// In-memory string.
     Str(String),
 }
 
@@ -91,7 +92,7 @@ impl From<String> for TemplateSource {
 }
 
 /// An associated event mapping maps the internal name to the external name.
-/// 
+///
 /// The following example maps the "press" event to "submit".
 /// ```text
 /// @button (press -> submit)

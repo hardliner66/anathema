@@ -1,3 +1,13 @@
+//! Variable scoping for template compilation.
+//!
+//! Lexical scoping with shadowing. Component boundaries isolate scopes.
+//!
+//! Globals:
+//! - **Runtime**: From Rust, persist across recompilations
+//! - **Template**: From template, cleared on recompilation
+//!
+//! Scope tree: `[]` = root, `[0]` = first child, `[0, 0]` = nested child
+
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
@@ -8,12 +18,11 @@ use super::expressions::{Expression, ExpressionId, Expressions};
 
 #[derive(Debug, Copy, Clone)]
 enum Global {
-    // The global value was set from the runtime
     Runtime(ExpressionId),
-    // The global value originates from a template
     Template(ExpressionId),
 }
 
+/// Storage for global variables.
 #[derive(Debug, Default, Clone)]
 pub struct Globals(HashMap<String, Global>);
 
@@ -39,6 +48,7 @@ impl Globals {
         _ = self.0.insert(ident, value);
     }
 
+    /// Clear template globals, keep runtime globals.
     fn clear_template_globals(&mut self) {
         let mut clear = vec![];
         for (key, glob) in &self.0 {
@@ -54,6 +64,7 @@ impl Globals {
     }
 }
 
+/// Unique identifier for a variable instance.
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct VarId(u32);
 
@@ -72,12 +83,12 @@ impl SlabIndex for VarId {
     }
 }
 
+/// Variable binding with associated expression.
 #[derive(Debug, Clone)]
 pub enum Variable {
-    /// A variable is defined but the value will be available at runtime, e.g `for-loops` and
-    /// `with`
+    /// Value available at runtime (e.g., `for` loop variables, `with` bindings).
     Definition(ExpressionId),
-    /// A value is declared, either as a local value or a global value
+    /// Compile-time value (local declarations, globals).
     Declaration(ExpressionId),
 }
 
@@ -89,19 +100,18 @@ impl Variable {
     }
 }
 
-/// The scope id acts as a path made up of indices
-/// into the scope tree.
-/// E.g `[0, 1, 0]` would point to `root.children[0].children[1].children[0]`.
+/// Scope tree path.
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub struct ScopeId(Box<[u16]>);
 
 impl ScopeId {
+    /// Get root scope ID.
     pub(crate) fn root() -> &'static Self {
         static ROOT: OnceLock<ScopeId> = OnceLock::new();
         ROOT.get_or_init(|| ScopeId(Box::new([])))
     }
 
-    // Create the next child id.
+    /// Create child scope ID at given index.
     fn next(&self, index: u16) -> Self {
         let mut scope_id = Vec::with_capacity(self.0.len() + 1);
         scope_id.extend_from_slice(&self.0);
@@ -109,17 +119,17 @@ impl ScopeId {
         Self(scope_id.into())
     }
 
-    // Get the parent id as a slice.
+    /// Get parent scope ID.
+    ///
+    /// # Panics
+    ///
+    /// Panics if called on root scope.
     fn parent(&self) -> &[u16] {
-        // Can't get the parent of the root
         assert!(self.0.len() > 1);
-
         let to = self.0.len() - 1;
         &self.0[..to]
     }
 
-    // Check if either `id` or `self` is a sub path of the other.
-    // If it is, return the length of the shortest of the two.
     #[cfg(test)]
     fn sub_path_len(&self, id: impl AsRef<[u16]>) -> Option<usize> {
         let id = id.as_ref();
@@ -134,6 +144,7 @@ impl ScopeId {
         &self.0
     }
 
+    /// Check if this scope contains another (is a prefix of it).
     fn contains(&self, other: impl AsRef<[u16]>) -> Option<&ScopeId> {
         let other = other.as_ref();
         let len = self.0.len();
@@ -186,7 +197,7 @@ impl RootScope {
     }
 }
 
-/// A scope stores versioned values
+/// Node in the scope tree.
 #[derive(Debug)]
 pub struct Scope {
     id: ScopeId,
@@ -198,12 +209,7 @@ impl Scope {
         Self { id, children: vec![] }
     }
 
-    // Create the next child scope id.
-    // ```
-    // let mut current = ScopeId::from([0]);
-    // let next = current.next_scope(); // scope 0,0
-    // let next = current.next_scope(); // scope 0,1
-    // ```
+    /// Create child scope, return its ID.
     fn create_child(&mut self) -> ScopeId {
         let index = self.children.len();
         let id = self.id.next(index as u16);
@@ -212,6 +218,7 @@ impl Scope {
     }
 }
 
+/// Maps variable names to declarations across scopes.
 #[derive(Debug)]
 struct Declarations(HashMap<String, Vec<(ScopeId, VarId)>>);
 
@@ -226,21 +233,19 @@ impl Declarations {
         ids.push((scope_id.into(), value_id));
     }
 
-    // Get the scope id that is closest to the argument
+    /// Look up closest accessible variable within boundary.
     fn get(&self, ident: &str, scope_id: impl AsRef<[u16]>, boundary: &ScopeId) -> Option<VarId> {
         self.0
             .get(ident)?
             .iter()
             .rev()
-            // here we need to look up closest scope that is still within the last boundary
             .filter(|(scope, _)| boundary.contains(scope).is_some())
             .filter_map(|(scope, var)| scope.contains(&scope_id).map(|_| *var))
             .next()
     }
 }
 
-/// Variable access, declaration and assignment
-/// during the compilation step.
+/// Variable management during compilation.
 #[derive(Debug)]
 pub struct Variables {
     globals: Globals,
@@ -286,12 +291,14 @@ impl Variables {
         Ok(())
     }
 
-    /// Reset the globals defined in the template.
-    /// This keeps any globals registered through Rust
+    /// Clear template globals, keep runtime.
     pub fn reset_globals(&mut self) {
         self.globals.clear_template_globals();
     }
 
+    /// Register global from Rust code.
+    ///
+    /// Runtime globals persist across recompilations.
     pub fn register_global(
         &mut self,
         ident: impl Into<String>,
@@ -303,17 +310,20 @@ impl Variables {
         self.set_global(ident, global)
     }
 
+    /// Define template global.
     pub fn define_global(&mut self, ident: impl Into<String>, expression: ExpressionId) -> Result<(), ErrorKind> {
         let global = Global::Template(expression);
         self.set_global(ident, global)
     }
 
+    /// Define local variable in current scope.
     pub fn define_local(&mut self, ident: impl Into<String>, value: ExpressionId) -> VarId {
         let scope_id = self.current.clone();
         let var_id = self.store.insert(Variable::Declaration(value));
         self.declare_at(ident, var_id, scope_id)
     }
 
+    /// Declare local with runtime value (`for`, `with`).
     pub fn declare_local(&mut self, ident: impl Into<String>, expressions: &mut Expressions) -> VarId {
         let scope_id = self.current.clone();
         let ident = ident.into();
@@ -323,53 +333,50 @@ impl Variables {
         self.declare_at(ident, var_id, scope_id)
     }
 
-    /// Fetch a value starting from the current path.
+    /// Look up variable from current scope.
     pub fn fetch(&self, ident: &str) -> Option<VarId> {
         self.declarations.get(ident, &self.current, self.boundary_ref())
     }
 
-    /// Create a new scope and set that scope as a boundary.
-    /// This prevents inner components from accessing values
-    /// declared outside of the component.
+    /// Create scope with component boundary.
     pub(crate) fn push_scope_boundary(&mut self) {
         self.push();
         self.boundary.push(self.current.clone());
     }
 
-    /// Pop the scope boundary.
+    /// Exit scope boundary.
     pub(crate) fn pop_scope_boundary(&mut self) {
         self.pop();
         self.boundary.pop();
     }
 
-    /// Create a new child and set the new child's id as the `current` id.
-    /// Any operations done from here on out are acting upon the new child scope.
+    /// Enter new child scope.
     pub(crate) fn push(&mut self) {
         let parent = self.root.get_scope_mut(&self.current);
         self.current = parent.create_child();
     }
 
-    /// Pop the current child scope, making the current into the parent of
-    /// the child.
+    /// Exit scope, return to parent.
     ///
-    /// E.e if the current id is `[0, 1, 2]` `pop` would result in a new
-    /// id of `[0, 1]`.
+    /// # Panics
+    ///
+    /// Panics if called on root scope.
     pub(crate) fn pop(&mut self) {
         self.current = self.current.parent().into();
     }
 
-    /// Load a variable from the store
+    /// Load expression for variable.
     pub fn load(&self, var: VarId) -> Option<ExpressionId> {
         self.store.get(var).map(Variable::as_expression)
     }
 
-    // Fetch and load a value from its ident
     #[cfg(test)]
     fn fetch_load(&self, ident: &str) -> Option<ExpressionId> {
         let id = self.declarations.get(ident, &self.current, self.boundary_ref())?;
         self.load(id)
     }
 
+    /// Look up global by name.
     pub fn global_lookup(&self, ident: &str) -> Option<ExpressionId> {
         self.globals.get(ident)
     }
@@ -467,7 +474,6 @@ mod test {
 
     #[test]
     fn scoping_variables_inaccessible_sibling() {
-        // Declare a variable in a sibling and fail to access that value
         let mut vars = Variables::new();
         let mut expressions = Expressions::empty();
         let inaccessible = expressions.insert_at_root("inaccessible");
@@ -478,10 +484,8 @@ mod test {
         assert!(vars.fetch(ident).is_some());
         vars.pop();
 
-        // Here we should have no access to the value via the root.
         assert!(vars.fetch_load(ident).is_none());
 
-        // Here we should have no access to the value via the sibling.
         vars.push();
         assert!(vars.fetch_load(ident).is_none());
     }
@@ -530,12 +534,8 @@ mod test {
         let two = expressions.insert_at_root(2);
         let three = expressions.insert_at_root(3);
 
-        // Define a variable in the root scope
         _ = vars.define_local("var", one);
 
-        // Create a new unique scope and boundary.
-        // * `var` should be inaccessible from within the new scope boundary
-        // * `outer_var` should be inaccessible to the root scope
         vars.push_scope_boundary();
         assert!(vars.fetch("var").is_none());
         _ = vars.define_local("var", two);
@@ -545,7 +545,6 @@ mod test {
         assert_eq!(vars.fetch_load("other_var").unwrap(), three);
         vars.pop();
 
-        // Return to root scope
         vars.pop_scope_boundary();
         assert_eq!(vars.fetch_load("var").unwrap(), one);
         assert!(vars.fetch("other_var").is_none());

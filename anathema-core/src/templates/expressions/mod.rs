@@ -32,25 +32,21 @@ impl Expressions {
         Self { inner: vec![] }
     }
 
-    /// Get a reference to an expression
+    /// Get expression by ID.
     ///
     /// # Panics
     ///
-    /// Panics if the expression id is greater than the length of expressions.
-    /// This should never happen as the ids are assigned to blueprints using them.
-    ///
-    /// Only time this could happen is if the expression id is created outside of the tempalte
-    /// generation.
+    /// Panics if ID invalid (created outside template generation).
     pub fn get(&self, id: ExpressionId) -> &Expression {
         &self.inner[id.0.index()].0
     }
 
-    /// Insert an expression in the root scope
+    /// Insert expression in root scope.
     pub fn insert_at_root(&mut self, expression: impl Into<Expression>) -> ExpressionId {
         self.insert(expression.into(), ScopeId::root().clone())
     }
 
-    /// Insert an expression and return the id to the newly inserted expression
+    /// Insert expression, deduplicating if identical expression exists in same scope.
     pub fn insert(&mut self, expression: Expression, boundary: ScopeId) -> ExpressionId {
         let id = ExpressionId(self.inner.len().into());
         match self

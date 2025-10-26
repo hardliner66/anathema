@@ -64,6 +64,8 @@ impl Document {
     }
 
     /// Compile the document to a [`Blueprint`].
+    ///
+    /// Clears expressions and resets template globals on each call.
     pub fn compile(&mut self, globals: &mut Variables) -> Result<Blueprint> {
         globals.reset_globals();
         self.expressions.clear();

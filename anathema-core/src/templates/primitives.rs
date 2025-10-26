@@ -2,14 +2,20 @@ use std::fmt::Display;
 
 use anathema_state::Hex;
 
-/// Primitive values such as booleans and integers.
-/// These values are all static and resolved at eval time.
+/// Literal values in templates.
+///
+/// Compile-time constants: `true`, `'a'`, `123`, `3.14`, `#ff0000`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Primitive {
+    /// Boolean.
     Bool(bool),
+    /// Character.
     Char(char),
+    /// 64-bit signed integer.
     Int(i64),
+    /// 64-bit float.
     Float(f64),
+    /// RGB color.
     Hex(Hex),
 }
 

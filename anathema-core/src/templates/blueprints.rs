@@ -1,11 +1,11 @@
 use anathema_store::smallmap::SmallMap;
 use anathema_store::storage::strings::StringId;
 
+use super::ComponentBlueprintId;
 use super::components::AssocEventMapping;
 use super::expressions::ExpressionId;
-use super::ComponentBlueprintId;
 
-/// A singular named node
+/// Named widget node.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Single {
     pub ident: String,
@@ -14,7 +14,7 @@ pub struct Single {
     pub value: Option<ExpressionId>,
 }
 
-/// A `for-each` node
+/// For-loop node.
 #[derive(Debug, Clone, PartialEq)]
 pub struct For {
     pub binding: String,
@@ -22,11 +22,7 @@ pub struct For {
     pub body: Vec<Blueprint>,
 }
 
-/// Scoping a value with a given name:
-/// ```text
-/// with 123 as number
-///     text number
-/// ```
+/// With-binding node: `with expr as name`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct With {
     pub binding: String,
@@ -34,17 +30,20 @@ pub struct With {
     pub body: Vec<Blueprint>,
 }
 
+/// If/else control flow.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ControlFlow {
     pub elses: Vec<Else>,
 }
 
+/// Else branch with optional condition.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Else {
     pub cond: Option<ExpressionId>,
     pub body: Vec<Blueprint>,
 }
 
+/// Component node.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Component {
     pub name: String,
@@ -53,24 +52,24 @@ pub struct Component {
     pub body: Vec<Blueprint>,
     pub attributes: SmallMap<String, ExpressionId>,
     pub assoc_functions: Vec<AssocEventMapping>,
-    /// The parent component in the blueprint
+    /// Parent component ID.
     pub parent: Option<ComponentBlueprintId>,
 }
 
-/// A blueprint represents what widget should be built from the information
+/// Compiled template structure.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Blueprint {
-    /// A singular widget
+    /// Named widget.
     Single(Single),
-    /// A for-loop
+    /// For-loop.
     For(For),
-    /// A `with` statement
+    /// With-binding.
     With(With),
-    /// If / else
+    /// If/else.
     ControlFlow(ControlFlow),
-    /// A component
+    /// Component.
     Component(Component),
-    /// A slot for a component
+    /// Component slot.
     Slot(Vec<Self>),
 }
 
@@ -111,4 +110,4 @@ macro_rules! forloop {
     };
 }
 
-pub(crate) use {single, forloop};
+pub(crate) use {forloop, single};

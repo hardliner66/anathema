@@ -1,10 +1,13 @@
+//! String interning for template compilation.
+//!
+//! Deduplicates strings and provides O(1) lookups via IDs.
+
 pub use anathema_store::storage::strings::StringId;
 use anathema_store::storage::strings::Strings as StringStore;
 
 static CHILDREN: &str = "children";
 
-/// This differs from the storage `Strings` only on account
-/// of having something akin to a constant for children
+/// String interning table with pre-registered "children" constant.
 pub struct Strings {
     inner: StringStore,
     children: StringId,
@@ -26,10 +29,20 @@ impl Strings {
         self.inner.push(string)
     }
 
+    /// Get string by ID.
+    ///
+    /// # Panics
+    ///
+    /// Panics if ID invalid.
     pub(crate) fn get_unchecked(&self, string_id: StringId) -> String {
         self.inner.get_unchecked(string_id)
     }
 
+    /// Get string reference by ID.
+    ///
+    /// # Panics
+    ///
+    /// Panics if ID invalid.
     pub fn get_ref_unchecked(&self, string_id: StringId) -> &str {
         self.inner.get_ref_unchecked(string_id)
     }
